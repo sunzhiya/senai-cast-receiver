@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "senai-cast-receiver"
+version = "1.2.0"
+description = "Windows 上的 DLNA/AirPlay/IPTV/华为多屏投屏接收端：手机视频 App 一键投到电脑播放"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "sunzhiya" }]
+keywords = ["dlna", "upnp", "airplay", "cast", "mediarenderer", "screen-mirroring"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: Microsoft :: Windows",
+    "Topic :: Multimedia :: Video",
+]
+dependencies = [
+    "PyQt6>=6.6",
+    "numpy",
+    "qrcode[pil]",
+    "pylnk3",
+    "cryptography",
+]
+
+[project.optional-dependencies]
+dev = ["pyinstaller"]
+
+[project.scripts]
+senai-cast-receiver = "main:main"
+senai-cast-shortcut = "receiver.shortcut:cli"
+
+[project.urls]
+Homepage = "https://github.com/sunzhiya/senai-cast-receiver"
+
+[tool.setuptools]
+packages = ["receiver", "receiver.dlna", "receiver.airplay"]
+py-modules = ["main"]
+
+[tool.setuptools.package-data]
+receiver = ["assets/*"]

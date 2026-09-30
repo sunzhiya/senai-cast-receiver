@@ -1,0 +1,5 @@
+PyQt6>=6.6
+numpy
+qrcode[pil]
+pylnk3
+cryptography
