@@ -6,13 +6,16 @@
 
 ## 支持情况
 
+> 状态标注：[已验证] 真机测试可用；[回归测试] 有自动化回归测试覆盖；
+> [实验] 协议实现存在，待真机验证；[引导] 提供检测/调起入口，不重新实现协议。
+
 | 来源 | 协议 | 状态 |
 |------|------|------|
-| 爱奇艺 / 腾讯视频 / 优酷 / 芒果 / B站 等 | DLNA/UPnP | [OK] 主通道，完整支持 |
-| **华为手机 App 内视频投屏**（华为视频 / 腾讯视频 / B站 华为版等） | DLNA/UPnP | [OK] 同上，走标准 DLNA，已兼容 |
-| iPhone / 部分小众投屏 App | AirPlay (mDNS 被发现 + 视频投屏) | [OK] 视频投屏可用（legacy RSA 配对 + /play 拉流）；[实验] 最新 iOS 的 method1 配对待补 |
-| **IPTV 电视**（m3u/m3u8 频道列表、单条流地址） | HTTP/UDP 拉流 | [OK] 工具栏「IPTV 电视」直接拉 |
-| 华为 / 安卓「无线投屏 / 多屏协同」整屏镜像 | 系统 Miracast | -> 工具栏「华为多屏协同」帮检测组件 + 一键调起系统「投影到此电脑」，不重复实现协议 |
+| 爱奇艺 / 腾讯视频 / 优酷 / 芒果 / B站 等 | DLNA/UPnP | [回归测试] 主通道，完整支持 |
+| **华为手机 App 内视频投屏**（华为视频 / 腾讯视频 / B站 华为版等） | DLNA/UPnP | [回归测试] 同上，走标准 DLNA，已兼容 |
+| iPhone / 部分小众投屏 App | AirPlay (mDNS 被发现 + 视频投屏) | [回归测试] 视频投屏可用（legacy RSA 配对 + /play 拉流）；[实验] 最新 iOS 的 method1 配对待补 |
+| **IPTV 电视**（m3u/m3u8 频道列表、单条流地址） | HTTP/UDP 拉流 | [回归测试] 工具栏「IPTV 电视」直接拉 |
+| 华为 / 安卓「无线投屏 / 多屏协同」整屏镜像 | 系统 Miracast | [引导] 工具栏「华为多屏协同」帮检测组件 + 一键调起系统「投影到此电脑」，不重复实现协议 |
 
 > **关于「华为私有协议」**：华为手机在**视频 App 内部**点投屏按钮，底层就是标准 DLNA（和爱优腾一样），
 > 本软件已完整兼容；华为的**屏幕镜像**（下拉菜单「无线投屏 / 多屏协同」）走的是系统级 Miracast / 华为 Cast+，
@@ -136,18 +139,21 @@ python main.py          # 跑完桌面也会有图标
 
 - 点界面「自测」：用一段公开测试视频验证本地解码与播放正常。
 - 用安卓 `UPnP Browser` 等工具扫描局域网，应能看到本设备（MediaRenderer）。
-- 本仓库附 5 套回归测试，可在无界面环境下验证：
+- 本仓库附 6 套回归测试，可在无界面环境下验证：
 
 | 脚本 | 验证内容 |
 |------|---------|
 | `test_headless.py` | DLNA 内核：device.xml、SOAP 控制、播放回调 |
-| `test_upnp_compat.py` | 按真实视频 App 流程模拟（拉 SCPD / GetProtocolInfo / SetAVTransportURI） |
+| `test_upnp_compat.py` | 按真实视频 App 流程模拟（拉 SCPD / GetProtocolInfo / SetAVTransportURI / Play / Pause / Seek） |
 | `test_transport_compat.py` | 针对 Dart 系控制点的状态机（三态、RelTime、GENA `<TransportState>`，含非 Dart 对照） |
 | `test_doublebind.py` | 双绑监听对照实验（证明"先关旧栈再建新栈"修复有效） |
 | `test_airplay.py` | AirPlay /server-info、/info、/play、/stop |
+| `test_control.py` | GENA 订阅/回推、双向暂停/继续/Seek、真实进度、电视模式 |
 
+全部测试可一次性跑完：
 ```
-python test_control.py
+python test_headless.py && python test_upnp_compat.py && python test_transport_compat.py \
+  && python test_doublebind.py && python test_airplay.py && python test_control.py
 ```
 
 ## 命令行参数
@@ -188,6 +194,10 @@ cast-receiver/
 └── assets/
     └── icon.ico            # 应用图标（多尺寸，快捷方式与窗口共用）
 ```
+
+## 开发说明
+
+本项目采用 AI 辅助开发。协议行为以真实设备/客户端测试为依据，并通过回归测试持续验证兼容性。
 
 ## 依赖的开源项目致谢
 

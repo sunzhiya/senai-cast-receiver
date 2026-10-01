@@ -151,7 +151,7 @@ class MainWindow(QMainWindow):
         self.btn_iptv.setToolTip('拉 m3u/m3u8 电视流，或打开 iptv-org 官方列表')
         self.btn_iptv.clicked.connect(self.open_iptv)
         self.btn_huawei = QPushButton('华为多屏协同')
-        self.btn_huawei.setToolTip('接收华为手机多屏协同投屏帧流(TCP 8910)')
+        self.btn_huawei.setToolTip('检测 Miracast 组件 + 一键调起系统「投影到此电脑」（华为手机多屏协同走系统 Miracast，本软件不重新实现该协议）')
         self.btn_huawei.clicked.connect(self.open_huawei)
         tb.addWidget(self.btn_shortcut)
         tb.addWidget(self.btn_miracast)
