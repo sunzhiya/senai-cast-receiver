@@ -53,13 +53,9 @@ def _disable_lan_proxy():
             if k.lower().endswith('_proxy') or k.lower() in ('all_proxy',)]
     cleared = []
     for k in keys:
-        v = os.environ.get(k)
+        v = os.environ.pop(k, None)
         if v:
             cleared.append('%s=%s' % (k, v))
-        try:
-            del os.environ[k]
-        except Exception:
-            pass
     os.environ['NO_PROXY'] = '*'
     os.environ['no_proxy'] = '*'
     return cleared

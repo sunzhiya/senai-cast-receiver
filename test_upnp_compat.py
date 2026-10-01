@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
-"""UPnP 兼容性测试：按完整投屏流程逐步验证接收端。
+"""UPnP 兼容性测试：按一个自研投屏 App 实际会走的流程逐步验证接收端。
 
-覆盖一个自研 UPnP 投屏 App 实际会走到的每一步，确保接收端的前置条件都满足：
   1. SSDP M-SEARCH 发现（SearchType: upnp:rootdevice / MediaRenderer:1）
   2. 下载 LOCATION 的 device.xml，解析
      DeviceInfo(deviceType, friendlyName, manufacturer, modelName)

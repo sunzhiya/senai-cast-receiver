@@ -11,8 +11,8 @@
   - 状态枚举只认 STOPPED / PLAYING / PAUSED_PLAYBACK，不认 TRANSITIONING
   - 靠 GENA 事件（LastChange 里的 <TransportState>）判断状态，不轮询
 
-因此接收端要按 UA 走三态；下面逐条验证本条路径，以及非 Dart UA
-仍按标准回 TRANSITIONING 的对照路径。
+因此接收端要按 UA 走三态；下面验证这条路径，外加非 Dart UA
+仍按标准回 TRANSITIONING 的对照。
 """
 import http.server
 import socketserver
