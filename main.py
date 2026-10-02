@@ -98,6 +98,15 @@ def main():
     if os.path.exists(_icon):
         from PyQt6.QtGui import QIcon
         app.setWindowIcon(QIcon(_icon))
+    # Windows 任务栏不显示图标：pythonw 无控制台，Qt 默认没有 taskbar 身份。
+    # 设 AppUserModelID 让 Windows 把它当独立应用挂到任务栏。
+    if os.name == 'nt':
+        try:
+            import ctypes
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(
+                'cn.senai.castreceiver')
+        except Exception:
+            pass
     ip = get_local_ip()
     if ip == '127.0.0.1':
         QMessageBox.warning(

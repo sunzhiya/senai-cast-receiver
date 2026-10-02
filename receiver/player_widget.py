@@ -185,6 +185,13 @@ class CastPlayer(QWidget):
     def is_playing(self):
         return self._player.playbackState() == QMediaPlayer.PlaybackState.PlayingState
 
+    def is_live(self):
+        """直播流（IPTV/K线等）没有总时长，duration 拿不到或为 0。"""
+        try:
+            return self._player.duration() <= 0
+        except Exception:
+            return False
+
     # ---------- 画质增强 ----------
     def available_presets(self):
         return list(PRESETS.keys())

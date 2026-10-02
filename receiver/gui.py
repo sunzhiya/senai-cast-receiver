@@ -127,33 +127,46 @@ class MainWindow(QMainWindow):
         self.btn_full.clicked.connect(self._toggle_fullscreen)
         tb.addWidget(self.btn_full)
 
-        # 进度条放独立一行：电脑端可拖动，键盘 ←/→ 也能跳
+        # 进度条放窗口底部固定行：电脑端可拖动，键盘 ←/→ 也能跳
+        # （用 QFrame 包一层塞进 QToolBar，避免 QSlider 直接放工具行被挤没）
         self._build_progress()
 
     def _build_progress(self):
-        pb = QToolBar('progress', self)
-        self.progress_tb = pb
-        self.addToolBar(pb)
-        pb.setMovable(False)
+        from PyQt6.QtWidgets import QFrame
+        container = QFrame()
+        self.progress_bar = container
+        h = QHBoxLayout()
+        h.setContentsMargins(6, 3, 6, 3)
+        h.setSpacing(8)
 
         self.pos_label = QLabel('00:00:00')
-        pb.addWidget(self.pos_label)
+        self.pos_label.setMinimumWidth(70)
+        h.addWidget(self.pos_label)
 
         self.prog = QSlider(Qt.Orientation.Horizontal)
         self.prog.setRange(0, 10000)   # 百分比 ×100，分辨率够用
         self.prog.setValue(0)
-        self.prog.setFixedWidth(420)
+        self.prog.setMinimumWidth(320)
         self.prog.sliderMoved.connect(self._on_slider_moved)
         self.prog.sliderReleased.connect(self._on_slider_released)
         self.prog.valueChanged.connect(self._on_slider_changed)
-        pb.addWidget(self.prog)
+        h.addWidget(self.prog, 1)
 
         self.dur_label = QLabel('00:00:00')
-        pb.addWidget(self.dur_label)
+        self.dur_label.setMinimumWidth(70)
+        h.addWidget(self.dur_label)
 
-        self.btn_seek = QPushButton('跳转')
-        self.btn_seek.setToolTip('双击进度条或 ←/→ 微调')
-        pb.addWidget(self.btn_seek)
+        container.setLayout(h)
+        container.setStyleSheet(
+            'QFrame { background:#0e0e0e; }'
+            'QSlider::groove:horizontal { height:6px; background:#333; border-radius:3px; }'
+            'QSlider::sub-page:horizontal { background:#2e7d32; border-radius:3px; }'
+            'QSlider::handle:horizontal { width:14px; margin:-5px 0; '
+            'background:#e0e0e0; border-radius:7px; }')
+        pb = QToolBar('progress', self)
+        pb.setMovable(False)
+        pb.addWidget(container)
+        self.addToolBar(Qt.ToolBarArea.BottomToolBarArea, pb)
 
     def _build_tools(self):
         tb = QToolBar('tools', self)
@@ -650,10 +663,18 @@ class MainWindow(QMainWindow):
         self.append_log('[控制] 手机端请求继续 -> 已继续')
 
     def _on_remote_seek(self, ms):
+        dur = self.player.duration_ms()
+        if dur <= 0:
+            # 直播流（IPTV/K线等）没有总时长，物理上无法 seek，
+            # 不是代码 bug，是片源本身不可拖
+            self.append_log('[控制] 手机端请求跳转 %d ms —— 当前片源无总时长（直播流），无法拖动'
+                            % ms)
+            return
         if self.player.seek(ms):
-            self.append_log('[控制] 手机端拖动进度 -> 跳转到 %.1f 秒' % (ms / 1000.0))
+            self.append_log('[控制] 手机端拖动进度 -> 跳转到 %s' % self._fmt_clock(ms))
+            self._notify_remote_seek(ms)
         else:
-            self.append_log('[控制] 跳转失败（片源可能不支持拖动）: %s ms' % ms)
+            self.append_log('[控制] 手机端跳转失败（片源可能不支持拖动）: %s ms' % ms)
 
     # ---------------- 双向控制：电脑 -> 手机 ----------------
     def _on_playback_changed(self, name):
@@ -683,6 +704,7 @@ class MainWindow(QMainWindow):
             self.showNormal()
             self.main_tb.show()
             self.tools_tb.show()
+            self.progress_bar.show()
             if getattr(self, 'log_dock', None) is not None:
                 self.log_dock.show()
             self.btn_full.setText('全屏')
@@ -693,6 +715,7 @@ class MainWindow(QMainWindow):
             self._fs_geo = self.geometry()
             self.main_tb.hide()
             self.tools_tb.hide()
+            self.progress_bar.hide()
             if getattr(self, 'log_dock', None) is not None:
                 self.log_dock.hide()
             self.btn_full.setText('退出全屏')
@@ -756,9 +779,17 @@ class MainWindow(QMainWindow):
             dur = self.player.duration_ms()
         except Exception:
             return
+        if self.player.is_live():
+            # 直播流没有总时长，进度条不可拖，只显示位置 + 「直播」
+            self.pos_label.setText(self._fmt_clock(pos))
+            self.dur_label.setText('直播')
+            self.prog.setEnabled(False)
+            self.prog.setValue(0)
+            return
         self.pos_label.setText(self._fmt_clock(pos))
         self.dur_label.setText(self._fmt_clock(dur))
         if dur > 0:
+            self.prog.setEnabled(True)
             pct = min(10000, int(pos * 10000 / dur))
             if not self.prog.isSliderDown():
                 self.prog.setValue(pct)
