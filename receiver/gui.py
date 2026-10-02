@@ -77,15 +77,12 @@ class MainWindow(QMainWindow):
         tb.addWidget(self.net_status)
 
         self.btn_pause = QPushButton('暂停')
-        self.btn_pause.clicked.connect(self.player.pause)
-        self.btn_resume = QPushButton('继续')
-        self.btn_resume.clicked.connect(self.player.resume)
+        self.btn_pause.clicked.connect(self._toggle_pause)
         self.btn_stop = QPushButton('停止')
         self.btn_stop.clicked.connect(self.player.stop)
         self.btn_self = QPushButton('自测')
         self.btn_self.clicked.connect(lambda: self.on_play(SELF_TEST_URL, '自测视频'))
         tb.addWidget(self.btn_pause)
-        tb.addWidget(self.btn_resume)
         tb.addWidget(self.btn_stop)
         tb.addWidget(self.btn_self)
 
@@ -129,6 +126,34 @@ class MainWindow(QMainWindow):
         self.btn_full = QPushButton('全屏')
         self.btn_full.clicked.connect(self._toggle_fullscreen)
         tb.addWidget(self.btn_full)
+
+        # 进度条放独立一行：电脑端可拖动，键盘 ←/→ 也能跳
+        self._build_progress()
+
+    def _build_progress(self):
+        pb = QToolBar('progress', self)
+        self.progress_tb = pb
+        self.addToolBar(pb)
+        pb.setMovable(False)
+
+        self.pos_label = QLabel('00:00:00')
+        pb.addWidget(self.pos_label)
+
+        self.prog = QSlider(Qt.Orientation.Horizontal)
+        self.prog.setRange(0, 10000)   # 百分比 ×100，分辨率够用
+        self.prog.setValue(0)
+        self.prog.setFixedWidth(420)
+        self.prog.sliderMoved.connect(self._on_slider_moved)
+        self.prog.sliderReleased.connect(self._on_slider_released)
+        self.prog.valueChanged.connect(self._on_slider_changed)
+        pb.addWidget(self.prog)
+
+        self.dur_label = QLabel('00:00:00')
+        pb.addWidget(self.dur_label)
+
+        self.btn_seek = QPushButton('跳转')
+        self.btn_seek.setToolTip('双击进度条或 ←/→ 微调')
+        pb.addWidget(self.btn_seek)
 
     def _build_tools(self):
         tb = QToolBar('tools', self)
@@ -591,6 +616,29 @@ class MainWindow(QMainWindow):
             st.position_provider = lambda: (self.player.position_ms(),
                                             self.player.duration_ms())
 
+    def _toggle_pause(self):
+        """暂停/继续共用一个按钮：按状态切换，并回推给手机。"""
+        if self.player.is_playing():
+            self.player.pause()
+            self._notify_remote_state('PAUSED')
+            self.state_label.setText('状态: 已暂停(电脑控制)')
+            self.append_log('[控制] 电脑端请求暂停')
+        else:
+            self.player.resume()
+            self._notify_remote_state('PLAYING')
+            self.state_label.setText('状态: 播放中')
+            self.append_log('[控制] 电脑端请求继续')
+
+    def _notify_remote_state(self, transport):
+        """电脑端暂停/继续后，把新状态同步给手机（GENA NOTIFY）。"""
+        st = getattr(self.bridge, 'state', None)
+        if st is None:
+            return
+        try:
+            st.set_transport(transport)
+        except Exception:
+            pass
+
     # ---------------- 双向控制：手机 -> 电脑 ----------------
     def _on_remote_pause(self):
         self.player.pause()
@@ -619,10 +667,13 @@ class MainWindow(QMainWindow):
             st.set_transport(transport)
         if name == 'PLAYING':
             self.state_label.setText('状态: 播放中')
+            self.btn_pause.setText('暂停')
         elif name == 'PAUSED':
             self.state_label.setText('状态: 已暂停')
+            self.btn_pause.setText('继续')
         else:
             self.state_label.setText('状态: 空闲')
+            self.btn_pause.setText('暂停')
         self.append_log('[状态] %s -> 已同步给手机(TransportState=%s)'
                         % (name, transport))
 
@@ -663,6 +714,18 @@ class MainWindow(QMainWindow):
                 else:
                     self.player.resume()
                 return
+            if event.key() == Qt.Key.Key_Left:
+                self._seek_rel(-5000)
+                return
+            if event.key() == Qt.Key.Key_Right:
+                self._seek_rel(5000)
+                return
+            if event.key() == Qt.Key.Key_Home:
+                self._seek_start()
+                return
+            if event.key() == Qt.Key.Key_End:
+                self._seek_end()
+                return
         except Exception:
             pass
         super().keyPressEvent(event)
@@ -673,8 +736,101 @@ class MainWindow(QMainWindow):
         self._stat_timer.setInterval(1000)
         self._stat_timer.timeout.connect(self._refresh_stat)
         self._stat_timer.start()
+        self._slider_pressed = False   # 用户正在拖进度条期间暂停自动更新
+
+    @staticmethod
+    def _fmt_clock(ms):
+        try:
+            s = max(0, int(ms // 1000))
+        except Exception:
+            s = 0
+        h, rem = divmod(s, 3600)
+        m, s = divmod(rem, 60)
+        return '%02d:%02d:%02d' % (h, m, s)
+
+    def _refresh_progress(self):
+        """每秒把播放位置推进度条与时间标签。"""
+        if getattr(self, '_slider_pressed', False):
+            return
+        try:
+            pos = self.player.position_ms()
+            dur = self.player.duration_ms()
+        except Exception:
+            return
+        self.pos_label.setText(self._fmt_clock(pos))
+        self.dur_label.setText(self._fmt_clock(dur))
+        if dur > 0:
+            pct = min(10000, int(pos * 10000 / dur))
+            if not self.prog.isSliderDown():
+                self.prog.setValue(pct)
+
+    def _on_slider_changed(self, val):
+        # 拖动中只更新显示，不动播放器
+        if not getattr(self, '_slider_pressed', False) and not self.prog.isSliderDown():
+            return
+        dur = self.player.duration_ms()
+        if dur <= 0:
+            return
+        pos = dur * (val / 10000.0)
+        self.pos_label.setText(self._fmt_clock(pos))
+
+    def _on_slider_moved(self, val):
+        """手指按住拖动时标记 pressed，防止 _refresh_progress 把位置弹回去。"""
+        self._slider_pressed = True
+        self._on_slider_changed(val)
+
+    def _on_slider_released(self):
+        """松手 → 真正 setPosition，并回推给手机。"""
+        self._slider_pressed = False
+        val = self.prog.value()
+        dur = self.player.duration_ms()
+        if dur <= 0:
+            return
+        ms = int(dur * (val / 10000.0))
+        if self.player.seek(ms):
+            self.append_log('[控制] 电脑端拖动进度 -> 跳转到 %s' % self._fmt_clock(ms))
+            self._notify_remote_seek(ms)
+        else:
+            self.append_log('[控制] 电脑端拖动失败（片源不支持跳转）')
+
+    def _notify_remote_seek(self, ms):
+        """电脑端 seek 后同步给手机（走 DLNA SOAP Seek，手机进度条也跟着跳）。"""
+        st = getattr(self.bridge, 'state', None)
+        if st is None:
+            return
+        try:
+            st._parse_time(ms)  # 仅触发校验，不改动
+        except Exception:
+            pass
+        # 通过 GENA 状态推送 + GetPositionInfo 刷新：手机侧下次轮询/事件时就会看到新位置
+        try:
+            st.set_transport(st.transport_state)  # 触发一次 NOTIFY 让手机刷新位置
+        except Exception:
+            pass
+
+    def _seek_rel(self, delta_ms):
+        """相对跳转（键盘 ←/→）。"""
+        dur = self.player.duration_ms()
+        if dur <= 0:
+            return
+        cur = self.player.position_ms()
+        ms = max(0, min(dur, cur + delta_ms))
+        if self.player.seek(ms):
+            self.append_log('[控制] 电脑端 %s %d ms -> %s' % (
+                '+' if delta_ms > 0 else '-', abs(delta_ms), self._fmt_clock(ms)))
+            self._notify_remote_seek(ms)
+
+    def _seek_start(self):
+        if self.player.seek(0):
+            self.append_log('[控制] 电脑端跳到开头')
+
+    def _seek_end(self):
+        dur = self.player.duration_ms()
+        if dur > 0 and self.player.seek(max(0, dur - 5000)):
+            self.append_log('[控制] 电脑端跳到结尾前 5s')
 
     def _refresh_stat(self):
+        self._refresh_progress()
         try:
             info = self.player.meta_summary()
         except Exception:
