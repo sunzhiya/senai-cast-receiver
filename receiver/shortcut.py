@@ -4,6 +4,9 @@
 两种运行方式都支持：
   - 源码/git：pythonw <项目目录>/main.py
   - pip 安装：pythonw -m main（main 被装成顶层模块）
+
+默认一律走系统解码（Media Foundation）引擎，可调用 HEVC/AV1/VP9 扩展 + 硬件解码，
+系统装了 Dolby Access 时音效也自动生效。一个图标就够，不再分两个。
 """
 import json
 import os
@@ -75,7 +78,8 @@ def build_lnk(lnk_path, extra_args=None, description=None, icon_index=None):
     """用 pylnk3 生成 .lnk 文件。
 
     extra_args: 追加给 main.py 的参数，例如 '--backend windows'
-                （走系统 Media Foundation 管道，可调用 HEVC/杜比视界扩展 + 硬件解码）。
+                （走系统 Media Foundation 管道，可调用 HEVC/AV1/VP9 扩展 + 硬件解码，
+                 系统装了 Dolby Access 时音效也自动生效）。
     """
     target, arguments, workdir = _target()
     if extra_args:
@@ -86,7 +90,7 @@ def build_lnk(lnk_path, extra_args=None, description=None, icon_index=None):
         '--workdir', workdir,
         '--icon', ICON,
         '--icon-index', str(ICON_INDEX if icon_index is None else icon_index),
-        '--description', description or '森投屏接收端 - DLNA/AirPlay/Miracast 投屏接收',
+        '--description', description or '森投屏接收端 - 系统解码(杜比)投屏接收',
         '--mode', 'Normal',
     ]
     subprocess.run(cmd, check=True, capture_output=True)
@@ -96,11 +100,13 @@ def build_lnk(lnk_path, extra_args=None, description=None, icon_index=None):
 def install_to_desktop(suffix='', extra_args=None, description=None):
     """生成快捷方式并放到桌面。优先直接写，失败（沙箱 EPERM）用 node 复制。
 
-    suffix: 文件名后缀，例如 ' (系统解码·杜比)' -> 森投屏接收端 (系统解码·杜比).lnk
+    suffix 留空时默认生成「系统解码·杜比」那个图标（suffix 自动补上），
+    并默认带 --backend windows。
     """
-    name = APP_NAME + suffix
+    name = APP_NAME + (suffix if suffix else ' (系统解码·杜比)')
     stage = _stage_path(name)
-    build_lnk(stage, extra_args=extra_args, description=description)
+    build_lnk(stage, extra_args=extra_args or '--backend windows',
+               description=description or '森投屏接收端 - 系统解码模式(Media Foundation, 可用 HEVC/AV1/VP9 扩展+硬件解码+杜比)')
     dest = os.path.join(DESKTOP, name + '.lnk')
     try:
         shutil.copy2(stage, dest)
@@ -111,12 +117,21 @@ def install_to_desktop(suffix='', extra_args=None, description=None):
     return dest
 
 
-def desktop_lnk(suffix=''):
+def desktop_lnk(suffix=' (系统解码·杜比)'):
+    """当前默认桌面图标路径（合并后只保留系统解码·杜比这一个）。"""
     return os.path.join(DESKTOP, APP_NAME + suffix + '.lnk')
 
 
+def legacy_shortcuts():
+    """旧版（合并前）可能生成过的两个图标文件名，重建时要清掉。"""
+    return [
+        os.path.join(DESKTOP, APP_NAME + '.lnk'),
+        os.path.join(DESKTOP, APP_NAME + ' (系统解码·杜比).lnk'),
+    ]
+
+
 def ensure_desktop_shortcut():
-    """桌面上没有图标就建一个，有了就不动。
+    """桌面上没有图标就建一个（系统解码·杜比），有了就不动。
 
     启动时自动跑一次，所以 pip/git 装完跑起来桌面就有图标，下次双击即可。
     权限不够 / 没装 pylnk3 等情况一律静默跳过，不能因此挡住启动。
@@ -130,28 +145,35 @@ def ensure_desktop_shortcut():
     try:
         return install_to_desktop()
     except Exception:
+        return None
+
+
+def install_default():
+    """创建唯一的桌面图标（系统解码·杜比），并清理旧的 ffmpeg 图标。
+
+    合并后桌面只留一个图标，避免「森投屏接收端.lnk」和
+    「森投屏接收端 (系统解码·杜比).lnk」同时存在的混乱。
+    """
+    path = install_to_desktop()
+    for old in legacy_shortcuts():
         try:
-            return install_to_desktop(suffix=' (系统解码·杜比)',
-                                      extra_args='--backend windows')
+            if os.path.exists(old) and old != path:
+                os.remove(old)
         except Exception:
-            return None
+            pass
+    return [path]
 
 
 def install_both():
-    """一次创建两个快捷方式：默认(ffmpeg,格式广) + 系统解码(Media Foundation,杜比/硬件解码)。"""
-    a = install_to_desktop()
-    b = install_to_desktop(
-        suffix=' (系统解码·杜比)',
-        extra_args='--backend windows',
-        description='森投屏接收端 - 系统解码模式(Media Foundation, 可用 HEVC/杜比视界扩展+硬件解码)')
-    return a, b
+    """历史兼容入口：合并后等价于 install_default（桌面只留一个图标）。"""
+    return install_default()
 
 
 def cli():
     """命令行入口：`python -m receiver.shortcut` 或 pip 装完的 `senai-cast-shortcut`。
-    强制重建两个桌面图标（默认 ffmpeg + 系统解码）。"""
+    强制重建唯一的桌面图标（系统解码·杜比），并清掉旧的 ffmpeg 图标。"""
     made = []
-    for p in install_both():
+    for p in install_default():
         print('桌面快捷方式已生成: %s' % p)
         made.append(p)
     return made

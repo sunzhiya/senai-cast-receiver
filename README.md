@@ -119,12 +119,11 @@ python main.py          # 跑完桌面也会有图标
 - 播放器背景：没播视频时显示，可选图片铺满或纯色（默认黑）。
 - 想跳过开屏启动：`python main.py --no-splash`。
 
-桌面快捷方式有两个生成途径：
+桌面快捷方式有两个生成途径，都只生成**一个**图标（系统解码·杜比），旧的 ffmpeg 图标会自动清理：
 
-- 界面里点「创建桌面快捷方式」，会生成两个 .lnk：
-  - `森投屏接收端.lnk` —— 默认引擎（ffmpeg），格式覆盖广，支持 m3u8/HLS。
-  - `森投屏接收端 (系统解码·杜比).lnk` —— `--backend windows`，走系统 Media Foundation
-    原生管道，可调用系统 HEVC/AV1/VP9 扩展与硬件解码，系统装了 Dolby 组件时音效也自动生效。
+- 界面里点「创建桌面快捷方式」：生成 `森投屏接收端 (系统解码·杜比).lnk`，
+  带 `--backend windows` 走系统 Media Foundation 原生管道，可调用系统 HEVC/AV1/VP9 扩展与硬件解码，
+  系统装了 Dolby 组件时音效也自动生效。
 - 命令行：`senai-cast-shortcut`（pip 装完自带），或 `python -m receiver.shortcut`。
 
 ### 华为手机怎么投

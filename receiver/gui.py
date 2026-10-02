@@ -565,17 +565,16 @@ class MainWindow(QMainWindow):
 
     def _make_shortcut(self):
         try:
-            from .shortcut import install_both
-            a, b = install_both()
-            self.append_log('桌面快捷方式已创建:\n  %s\n  %s' % (a, b))
+            from .shortcut import install_default
+            paths = install_default()
+            self.append_log('桌面快捷方式已创建:\n  %s' % paths[0])
             QMessageBox.information(
                 self, '完成',
-                '已创建两个桌面快捷方式：\n\n'
-                '① 森投屏接收端 —— 默认引擎(ffmpeg)，格式覆盖广，支持 m3u8/HLS。\n\n'
-                '② 森投屏接收端 (系统解码·杜比) —— 系统 Media Foundation 管道，'
+                '已创建唯一桌面快捷方式：\n\n'
+                '森投屏接收端 (系统解码·杜比) —— 系统 Media Foundation 管道，'
                 '可调用你已装的 HEVC/AV1/VP9 扩展与硬件解码；'
                 '若系统装了 Dolby Access，音效也会自动生效。\n\n'
-                '想更清晰更流畅就优先用②；②播不了某格式时换回①。\n\n%s\n%s' % (a, b))
+                '旧的 ffmpeg 快捷方式已自动清理。\n\n%s' % paths[0])
         except Exception as e:
             self.append_log('创建快捷方式失败: %s' % e)
             QMessageBox.warning(self, '失败', '创建快捷方式失败: %s' % e)
