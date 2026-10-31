@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+build/
+dist/
+dist_pypi/
+*.egg-info/
+msix_layout/
+msix_cert/
+msix/screenshots/
+_commented_src/
+tools/
+*.spec
+*.lnk

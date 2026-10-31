@@ -1,0 +1,1 @@
+DEVICE_UUID = "f7c2b3a1-5d8e-4c2a-9b1f-2e6c4a8d0b13"
